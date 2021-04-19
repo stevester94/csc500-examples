@@ -30,17 +30,23 @@ two_d = tf.constant(
         [7, 8, 9, 1, 1, 2]
     ]
 )
-print(two_d)
+print(two_d) # shape=(2,6)
 print(two_d.ndim) # 2
 
-# This has a shape of (6,)
-ds = tf.data.Dataset.from_tensors(one_d).repeat(100)
-print("Element spec: ", ds.element_spec)
+ds = tf.data.Dataset.from_tensors(one_d)
+print("Element spec: ", ds.element_spec)  # This has a shape of (6,)
 
-# This has a shape of (None, 6)
-ds = tf.data.Dataset.from_tensors(one_d).repeat(100).batch(100)
-print("Element spec: ", ds.element_spec)
+ds = tf.data.Dataset.from_tensors(one_d).batch(100)
+print("Element spec: ", ds.element_spec) # This has a shape of (None, 6)
 
-# This has a shape of (None)
-ds = tf.data.Dataset.from_tensors(zero_d).repeat(100).batch(100)
-print("Element spec: ", ds.element_spec)
+ds = tf.data.Dataset.from_tensors(zero_d).batch(100)
+print("Element spec: ", ds.element_spec) # This has a shape of (None)
+
+
+
+ds = tf.data.Dataset.from_tensors(two_d)
+print("Element spec: ", ds.element_spec) # This has a shape of (2,6)
+
+print("Elements:")
+for e in ds:
+    print(e)
