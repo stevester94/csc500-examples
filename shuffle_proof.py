@@ -1,21 +1,23 @@
 #! /usr/bin/python3
 
+# This example shows that our dataset does shuffle between iterations, and that it is deterministically shuffled
+# across runs (As long as you set the seed)
 
 import datasetaccessor
 import tensorflow as tf
 import tensorflow.keras.models as models
 import tensorflow.keras as keras
 
-#vdsa = datasetaccessor.VanillaDatasetAccessor(tfrecords_path="../csc500-dataset-preprocessor/vanilla_tfrecords/")
+# Comment this out to see that the indices change between runs
+tf.random.set_seed(1337)
+
 vdsa = datasetaccessor.VanillaDatasetAccessor(
     day_to_get=[2],
     transmitter_id_to_get=[10],
     tfrecords_path="../csc500-dataset-preprocessor/vanilla_tfrecords/")
 
-# Shuffled: 0m12.887s
-# Unshuffled: 0m15.7s
 ds = vdsa.get_dataset()
-ds = ds.map(lambda inp: ([inp["transmission_id"],], [inp["transmission_id"],])) # We just get tuples of these fuckers
+ds = ds.map(lambda inp: ([inp["transmission_id"],], [inp["transmission_id"],])) 
 
 print("Iteration 1:")
 for e in ds:

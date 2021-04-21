@@ -1,5 +1,7 @@
 #! /usr/bin/python3
 
+# This is just a toy to test out basic keras usage. We are training an identity function
+
 
 import datasetaccessor
 import tensorflow as tf

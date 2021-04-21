@@ -1,4 +1,8 @@
 #! /usr/bin/python3
+
+# Keeping this around for historic purposes. I ended up pre-windowing the data anyways.
+
+
 import sys
 
 import tensorflow as tf
