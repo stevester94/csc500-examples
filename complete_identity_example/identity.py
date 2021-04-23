@@ -3,11 +3,41 @@
 # This is just a toy to test out basic keras usage. We are training an identity function
 
 
+import sys
+
 import datasetaccessor
+
 import tensorflow as tf
 import tensorflow.keras.models as models
 import tensorflow.keras as keras
-import sys
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+def plot_confusion_matrix(cm, title='Confusion matrix', cmap=plt.cm.Blues, labels=[]):
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(labels))
+    plt.xticks(tick_marks, labels, rotation=45)
+    plt.yticks(tick_marks, labels)
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+
+    plt.show()
+
+
+def plot_loss_curve(history):
+    plt.figure()
+    plt.title('Training performance')
+    plt.plot(history.epoch, history.history['loss'], label='train loss+error')
+    plt.plot(history.epoch, history.history['val_loss'], label='val_error')
+    plt.legend()
+    plt.xlabel('Epoch')
+
+    plt.show()
+
 
 tf.random.set_seed(1337)
 
@@ -15,7 +45,7 @@ tf.random.set_seed(1337)
 RANGE  = 10
 REPEAT = 100
 BATCH  = 10
-EPOCHS = 50
+EPOCHS = 25
 
 TRAIN_SPLIT = 0.6
 EVAL_SPLIT  = 0.2
@@ -30,25 +60,23 @@ ds = ds.shuffle(RANGE)
 ds = ds.repeat(REPEAT)
 
 # Split the original dataset into train, eval, and test sets
-train_ds = ds.take(ds.cardinality().numpy() * TRAIN_SPLIT)
+ds_size = ds.cardinality().numpy()
+train_size =  ds_size * TRAIN_SPLIT
+eval_size  =  ds_size * EVAL_SPLIT
+test_size  =  ds_size * TEST_SPLIT
 
-eval_ds  = ds.skip(train_ds.cardinality())
-eval_ds  = eval_ds.take(ds.cardinality().numpy() * EVAL_SPLIT)
+train_ds = ds.take(train_size)
 
-test_ds  = ds.skip(train_ds.cardinality() + eval_ds.cardinality())
-eval_ds  = eval_ds.take(train_ds.cardinality().numpy() *  TEST_SPLIT)
+eval_ds  = ds.skip(train_size)
+eval_ds  = eval_ds.take(eval_size)
+
+test_ds  = ds.skip(train_size+eval_size)
+test_ds  = ds.take(test_size)
 
 train_ds = train_ds.batch(BATCH)
 eval_ds  = eval_ds.batch(BATCH)
 test_ds  = test_ds.batch(BATCH)
 
-for e in test_ds:
-    print(e)
-
-
-#sys.exit(1)
-
-ds = ds.batch(BATCH)
 
 inputs  = keras.Input(shape=(1,))
 x = keras.layers.Dense(100)(inputs)
@@ -71,12 +99,12 @@ callbacks = [
         # Path where to save the model
         # The two parameters below mean that we will overwrite
         # the current checkpoint if and only if
-        # the `val_loss` score has improved.
-        # The saved model name will include the current epoch.
+        # the `val_loss` score has improved at the end of this epoch
+        # Note that this is a dir
         filepath="model_checkpoint",
         save_best_only=True,  # Only save a model if `val_loss` has improved.
-        monitor="val_loss",
-        verbose=1,
+        monitor="val_loss", # We could theoretically monitor the eval loss as well (eh)
+        verbose=0,
     )
 ]
 
@@ -92,6 +120,37 @@ history = model.fit(
 print("Now we evaluate on the test data")
 results = model.evaluate(test_ds)
 print("test loss:", results[0], ", test acc:", results[1])
+
+# Now we generate the confusion matrix and loss graph
+
+# Confusion matrix
+# Just a little jank, gotta flatten out the ground truth labels from the dataset.
+# Probably an easier way to do this...
+test_y_hat = []
+test_y     = []
+for e in test_ds:
+    test_y_hat.append(
+        np.argmax(model.predict(e[0]), axis=1)
+    )
+
+    test_y.append(
+        np.argmax(e[1].numpy(), axis=1)
+    )
+
+test_y_hat = np.ndarray.flatten(np.array(test_y_hat))
+test_y     = np.ndarray.flatten(np.array(test_y))
+
+print(test_y_hat)
+print(test_y)
+#confusion_ds = test_ds.unbatch().map(lambda x,y: y).batch(test_size).as_numpy_iterator()
+
+sys.exit(1)
+test_y = np.argmax(test_y, axis=1)
+test_y_hat = model.predict(test_ds)
+test_y_hat = np.argmax(test_y_hat, axis=1)
+
+confusion = tf.math.confusion_matrix(test_y, test_y_hat)
+plot_confusion_matrix(confusion)
 
 derp = tf.constant([[1,],])
 print(derp)
