@@ -38,7 +38,7 @@ def plot_loss_curve(history):
 
     plt.show()
 
-
+# Setting the seed is vital for reproducibility
 tf.random.set_seed(1337)
 
 # Hyper Parameters
@@ -51,6 +51,7 @@ TRAIN_SPLIT = 0.6
 EVAL_SPLIT  = 0.2
 TEST_SPLIT  = 0.2
 
+# We are training an identity function. So our dataset looks like [(1,1), (2,2), ...]
 d1 = tf.data.Dataset.range(RANGE)
 d2 = tf.data.Dataset.range(RANGE)
 ds = tf.data.Dataset.zip((d1, d2))
@@ -80,8 +81,6 @@ test_ds  = test_ds.batch(BATCH)
 
 inputs  = keras.Input(shape=(1,))
 x = keras.layers.Dense(100)(inputs)
-#x = keras.layers.Dense(100)(x)
-#x = keras.layers.Dense(100)(x)
 outputs = keras.layers.Dense(RANGE, activation="softmax")(x)
 
 model = keras.Model(inputs=inputs, outputs=outputs, name="steves_model")
@@ -124,8 +123,8 @@ print("test loss:", results[0], ", test acc:", results[1])
 # Now we generate the confusion matrix and loss graph
 
 # Confusion matrix
-# Just a little jank, gotta flatten out the ground truth labels from the dataset.
-# Probably an easier way to do this...
+# It's jank because we have a dataset of tuples, and there's not a great way to separate the halves without iterating twice.
+# However, iterating twice will not work because our dataset is shuffled on each iteration.
 test_y_hat = []
 test_y     = []
 for e in test_ds:
@@ -137,20 +136,17 @@ for e in test_ds:
         np.argmax(e[1].numpy(), axis=1)
     )
 
+
 test_y_hat = np.ndarray.flatten(np.array(test_y_hat))
 test_y     = np.ndarray.flatten(np.array(test_y))
 
-print(test_y_hat)
-print(test_y)
-#confusion_ds = test_ds.unbatch().map(lambda x,y: y).batch(test_size).as_numpy_iterator()
-
-sys.exit(1)
-test_y = np.argmax(test_y, axis=1)
-test_y_hat = model.predict(test_ds)
-test_y_hat = np.argmax(test_y_hat, axis=1)
-
+# I've checked both of these calls, they work correctly
 confusion = tf.math.confusion_matrix(test_y, test_y_hat)
 plot_confusion_matrix(confusion)
+
+
+# Loss curve
+plot_loss_curve(history)
 
 derp = tf.constant([[1,],])
 print(derp)
