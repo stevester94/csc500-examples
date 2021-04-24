@@ -6,6 +6,7 @@
 import sys
 
 from steves_utils import datasetaccessor
+from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
 
 import tensorflow as tf
 import tensorflow.keras.models as models
@@ -14,30 +15,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_confusion_matrix(cm, title='Confusion matrix', cmap=plt.cm.Blues, labels=[]):
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(labels))
-    plt.xticks(tick_marks, labels, rotation=45)
-    plt.yticks(tick_marks, labels)
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-
-    plt.show()
-
-
-def plot_loss_curve(history):
-    plt.figure()
-    plt.title('Training performance')
-    plt.plot(history.epoch, history.history['loss'], label='Training Loss')
-    plt.plot(history.epoch, history.history['val_loss'], label='Validation Loss')
-    plt.legend()
-    plt.xlabel('Epoch')
-
-    plt.show()
-
 # Setting the seed is vital for reproducibility
 tf.random.set_seed(1337)
 
@@ -45,7 +22,7 @@ tf.random.set_seed(1337)
 RANGE  = 10
 REPEAT = 100
 BATCH  = 10
-EPOCHS = 25
+EPOCHS = 5
 
 TRAIN_SPLIT = 0.6
 EVAL_SPLIT  = 0.2
@@ -143,11 +120,9 @@ test_y     = np.ndarray.flatten(np.array(test_y))
 # I've checked both of these calls, they work correctly
 confusion = tf.math.confusion_matrix(test_y, test_y_hat)
 plot_confusion_matrix(confusion)
+#save_confusion_matrix(confusion)
 
 
 # Loss curve
 plot_loss_curve(history)
-
-derp = tf.constant([[1,],])
-print(derp)
-print( model(derp))
+#save_loss_curve(history)
