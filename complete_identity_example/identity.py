@@ -31,8 +31,8 @@ def plot_confusion_matrix(cm, title='Confusion matrix', cmap=plt.cm.Blues, label
 def plot_loss_curve(history):
     plt.figure()
     plt.title('Training performance')
-    plt.plot(history.epoch, history.history['loss'], label='train loss+error')
-    plt.plot(history.epoch, history.history['val_loss'], label='val_error')
+    plt.plot(history.epoch, history.history['loss'], label='Training Loss')
+    plt.plot(history.epoch, history.history['val_loss'], label='Validation Loss')
     plt.legend()
     plt.xlabel('Epoch')
 
