@@ -21,18 +21,25 @@ from steves_utils.datasetaccessor import SymbolDatasetAccessor
 tf.random.set_seed(1337)
 
 # Hyper Parameters
-RANGE  = 3
+RANGE  = 12
 BATCH  = 200
-EPOCHS = 2
+EPOCHS = 100
 
 TRAIN_SPLIT = 0.6
 EVAL_SPLIT  = 0.2
 TEST_SPLIT  = 0.2
 
+#ds_size = 2233502 # Too lazy, lets goooo
+# dsa = datasetaccessor.SymbolDatasetAccessor(
+#     day_to_get=[1,2],
+#     transmitter_id_to_get=[10,11],
+#     transmission_id_to_get=[1,2],
+#     tfrecords_path="../../csc500-dataset-preprocessor/symbol_tfrecords/")
+
 dsa = datasetaccessor.SymbolDatasetAccessor(
-    day_to_get=[1,2],
+    day_to_get=[1],
     transmitter_id_to_get=[10,11],
-    transmission_id_to_get=[1,2],
+    transmission_id_to_get=[1],
     tfrecords_path="../../csc500-dataset-preprocessor/symbol_tfrecords/")
 
 ds = dsa.get_dataset()
@@ -40,12 +47,17 @@ ds = dsa.get_dataset()
 
 # Split the original dataset into train, eval, and test sets
 #ds_size = dsa.get_dataset_cardinality()
-ds_size = 2233502 # Too lazy, lets goooo
+ds_size = 515368
 print("cardinality: ", ds_size)
 
 # Times
 # TDLR: batching is good, prefetching doesn't help at least with the tight iterative loop I used.
 # Splitting into datasets then batching slows down some but not too much
+#
+# Dataset:
+#     day_to_get=[1,2],
+#     transmitter_id_to_get=[10,11],
+#     transmission_id_to_get=[1,2],
 #
 # Actual Times:
 # Naive one by one mapping: 2m4.322s, 80% Idle
@@ -54,6 +66,7 @@ print("cardinality: ", ds_size)
 # Batch then map 200 then prefetch 5: 0m24.661s, 40% Idle
 # Map then batch via the split sets: 0m42.773s, 48% Idle
 ds = ds.map(lambda inp: ( inp["frequency_domain_IQ"], inp["transmitter_id"]))
+ds = ds.map(lambda x,y: (x, tf.one_hot(y, RANGE)))
 
 train_size =  int(ds_size * TRAIN_SPLIT)
 eval_size  =  int(ds_size * EVAL_SPLIT)
@@ -74,6 +87,8 @@ test_ds  = test_ds.batch(BATCH)
 inputs  = keras.Input(shape=(2,48))
 x = keras.layers.Flatten()(inputs)
 x = keras.layers.Dense(100)(x)
+x = keras.layers.Dense(100)(x)
+x = keras.layers.Dense(100)(x)
 outputs = keras.layers.Dense(RANGE, activation="softmax")(x)
 
 model = keras.Model(inputs=inputs, outputs=outputs, name="steves_model")
@@ -81,7 +96,7 @@ model.summary()
 
 
 model.compile(optimizer='adam',
-              loss=tf.keras.losses.MeanSquaredError(),
+              loss=tf.keras.losses.MeanSquaredError(), # This may do better with categorical_crossentropy
               metrics=[keras.metrics.CategoricalAccuracy()], # Categorical is needed for one hot encoded data
 )
 
@@ -119,10 +134,16 @@ print("test loss:", results[0], ", test acc:", results[1])
 # However, iterating twice will not work because our dataset is shuffled on each iteration.
 test_y_hat = []
 test_y     = []
-for e in test_ds:
-    test_y_hat.extend(list(np.argmax(model.predict(e[0]), axis=1)))
 
-    test_y.extend(list(e[1].numpy()))
+# This is actually very slow
+for e in test_ds:
+    test_y_hat.extend(
+        list(np.argmax(model.predict(e[0]), axis=1))
+    )
+
+    test_y.extend(
+        list(np.argmax(e[1].numpy(), axis=1))
+    )
 
 
 #test_y_hat = np.ndarray.flatten(np.array(test_y_hat))
@@ -130,10 +151,10 @@ for e in test_ds:
 
 # I've checked both of these calls, they work correctly
 confusion = tf.math.confusion_matrix(test_y, test_y_hat)
-plot_confusion_matrix(confusion)
-#save_confusion_matrix(confusion)
+#plot_confusion_matrix(confusion)
+save_confusion_matrix(confusion)
 
 
 # Loss curve
-plot_loss_curve(history)
-#save_loss_curve(history)
+#plot_loss_curve(history)
+save_loss_curve(history)
