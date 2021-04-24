@@ -8,7 +8,7 @@ import sys
 import tensorflow as tf
 import tensorflow.keras.models as models
 import tensorflow.keras as keras
-import datasetaccessor
+from steves_utils import datasetaccessor
 
 
 ##########################################################

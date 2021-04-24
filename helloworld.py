@@ -3,7 +3,7 @@
 # This is just a toy to test out basic keras usage. We are training an identity function
 
 
-import datasetaccessor
+from steves_utils import datasetaccessor
 import tensorflow as tf
 import tensorflow.keras.models as models
 import tensorflow.keras as keras

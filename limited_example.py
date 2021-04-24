@@ -3,7 +3,7 @@
 # Toy example where we aren't even using a one hot encoding.
 
 
-import datasetaccessor
+from steves_utils import datasetaccessor
 import tensorflow as tf
 import tensorflow.keras.models as models
 import tensorflow.keras as keras
