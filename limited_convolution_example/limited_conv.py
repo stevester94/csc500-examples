@@ -23,8 +23,8 @@ tf.random.set_seed(1337)
 
 # Hyper Parameters
 RANGE   = 12
-BATCH   = 1000
-EPOCHS  = 25
+BATCH   = 100
+EPOCHS  = 50
 DROPOUT = 0.5 # [0,1], the chance to drop an input
 
 TRAIN_SPLIT = 0.6
@@ -41,7 +41,9 @@ TEST_SPLIT  = 0.2
 dsa = datasetaccessor.SymbolDatasetAccessor(
     day_to_get=[1],
     transmitter_id_to_get=[10,11],
-    transmission_id_to_get=[1,2],
+    #transmitter_id_to_get=[11],
+    #transmission_id_to_get=[1,2],
+    transmission_id_to_get=[1],
     tfrecords_path="../../csc500-dataset-preprocessor/symbol_tfrecords/")
 
 ds = dsa.get_dataset()
@@ -54,8 +56,21 @@ print("cardinality: ", ds_size)
 # Times
 # TDLR: batching is good, prefetching doesn't help at least with the tight iterative loop I used.
 # Splitting into datasets then batching slows down some but not too much
+#
+# Actual times
+# No parallelism with initial interleave: 0m58.573s
+# Parallelism on the initial interleave: 1m0.510s (I think there's somethign here though, CPU usage on getting cardinality was higher than normal)
 ds = ds.map(lambda inp: ( inp["frequency_domain_IQ"], inp["transmitter_id"]))
 ds = ds.map(lambda x,y: (x, tf.one_hot(y, RANGE)))
+
+# Using naive caching with 25 epochs: 16m23.022s
+# Using totally fucking rad caching with 50 epochs, not shuffling each iteration: 11m0.380s
+# No caching at all, prefetch on all DS, batch=100, epoch=50, no longer shuffling dsa: doesnt matter, shuffling still fucked
+# No caching at all, prefetch on all DS, batch=100, epoch=50, no longer shuffling dsa, shuffling train each iteration:
+#    doesnt matter, shuffling still fucked
+
+ds = ds.take(ds_size)
+#ds = ds.shuffle(ds_size, reshuffle_each_iteration=False)
 
 train_size =  int(ds_size * TRAIN_SPLIT)
 eval_size  =  int(ds_size * EVAL_SPLIT)
@@ -69,9 +84,13 @@ eval_ds  = eval_ds.take(eval_size)
 test_ds  = ds.skip(train_size+eval_size)
 test_ds  = ds.take(test_size)
 
-train_ds = train_ds.batch(BATCH)
-eval_ds  = eval_ds.batch(BATCH)
-test_ds  = test_ds.batch(BATCH)
+#train_ds = train_ds.cache().shuffle(train_size).batch(BATCH).prefetch(100)
+#eval_ds  = eval_ds.batch(BATCH).cache().prefetch(100)
+#test_ds  = test_ds.batch(BATCH).cache().prefetch(100)
+
+train_ds = train_ds.shuffle(train_size, reshuffle_each_iteration=True).batch(BATCH).prefetch(100)
+eval_ds  = eval_ds.batch(BATCH).prefetch(100)
+test_ds  = test_ds.batch(BATCH).prefetch(100)
 
 inputs  = keras.Input(shape=(2,48))
 
