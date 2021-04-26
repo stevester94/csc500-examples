@@ -9,6 +9,8 @@ from datetime import datetime
 from steves_utils import datasetaccessor
 from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
 from steves_utils.datasetaccessor import SymbolDatasetAccessor
+from steves_utils.binary_random_accessor import Binary_OFDM_Symbol_Random_Accessor
+from steves_utils.binary_symbol_dataset_accessor import BinarySymbolDatasetAccessor
 
 import tensorflow as tf
 import tensorflow.keras.models as models
@@ -24,73 +26,24 @@ tf.random.set_seed(1337)
 # Hyper Parameters
 RANGE   = 12
 BATCH   = 100
-EPOCHS  = 50
+EPOCHS  = 5
 DROPOUT = 0.5 # [0,1], the chance to drop an input
 
-TRAIN_SPLIT = 0.6
-EVAL_SPLIT  = 0.2
-TEST_SPLIT  = 0.2
+files = [
+    "../../csc500-dataset-preprocessor/bin/day-1_transmitter-10_transmission-1.bin",
+    "../../csc500-dataset-preprocessor/bin/day-1_transmitter-11_transmission-1.bin",
+]
 
-#ds_size = 2233502 # Too lazy, lets goooo
-# dsa = datasetaccessor.SymbolDatasetAccessor(
-#     day_to_get=[1,2],
-#     transmitter_id_to_get=[10,11],
-#     transmission_id_to_get=[1,2],
-#     tfrecords_path="../../csc500-dataset-preprocessor/symbol_tfrecords/")
-
-dsa = datasetaccessor.SymbolDatasetAccessor(
+bsda = BinarySymbolDatasetAccessor(
+    seed=1337,
+    batch_size=BATCH,
+    num_class_labels=RANGE,
+    bin_path="../../csc500-dataset-preprocessor/bin/",
     day_to_get=[1],
     transmitter_id_to_get=[10,11],
-    #transmitter_id_to_get=[11],
-    #transmission_id_to_get=[1,2],
     transmission_id_to_get=[1],
-    tfrecords_path="../../csc500-dataset-preprocessor/symbol_tfrecords/")
+)
 
-ds = dsa.get_dataset()
-
-# Split the original dataset into train, eval, and test sets
-ds_size = dsa.get_dataset_cardinality()
-#ds_size = 4488771
-print("cardinality: ", ds_size)
-
-# Times
-# TDLR: batching is good, prefetching doesn't help at least with the tight iterative loop I used.
-# Splitting into datasets then batching slows down some but not too much
-#
-# Actual times
-# No parallelism with initial interleave: 0m58.573s
-# Parallelism on the initial interleave: 1m0.510s (I think there's somethign here though, CPU usage on getting cardinality was higher than normal)
-ds = ds.map(lambda inp: ( inp["frequency_domain_IQ"], inp["transmitter_id"]))
-ds = ds.map(lambda x,y: (x, tf.one_hot(y, RANGE)))
-
-# Using naive caching with 25 epochs: 16m23.022s
-# Using totally fucking rad caching with 50 epochs, not shuffling each iteration: 11m0.380s
-# No caching at all, prefetch on all DS, batch=100, epoch=50, no longer shuffling dsa: doesnt matter, shuffling still fucked
-# No caching at all, prefetch on all DS, batch=100, epoch=50, no longer shuffling dsa, shuffling train each iteration:
-#    doesnt matter, shuffling still fucked
-
-ds = ds.take(ds_size)
-#ds = ds.shuffle(ds_size, reshuffle_each_iteration=False)
-
-train_size =  int(ds_size * TRAIN_SPLIT)
-eval_size  =  int(ds_size * EVAL_SPLIT)
-test_size  =  int(ds_size * TEST_SPLIT)
-
-train_ds = ds.take(train_size)
-
-eval_ds  = ds.skip(train_size)
-eval_ds  = eval_ds.take(eval_size)
-
-test_ds  = ds.skip(train_size+eval_size)
-test_ds  = ds.take(test_size)
-
-#train_ds = train_ds.cache().shuffle(train_size).batch(BATCH).prefetch(100)
-#eval_ds  = eval_ds.batch(BATCH).cache().prefetch(100)
-#test_ds  = test_ds.batch(BATCH).cache().prefetch(100)
-
-train_ds = train_ds.shuffle(train_size, reshuffle_each_iteration=True).batch(BATCH).prefetch(100)
-eval_ds  = eval_ds.batch(BATCH).prefetch(100)
-test_ds  = test_ds.batch(BATCH).prefetch(100)
 
 inputs  = keras.Input(shape=(2,48))
 
@@ -157,21 +110,24 @@ callbacks = [
 ]
 
 history = model.fit(
-    x=train_ds, 
+    x=bsda.get_train_generator(),
+    # batch_size=BATCH,
+    steps_per_epoch=int(bsda.get_train_dataset_cardinality()/BATCH),
     epochs=EPOCHS,
-    validation_data=eval_ds,
-    callbacks=callbacks,
+    validation_data=bsda.get_eval_generator(),
+    validation_steps=int(bsda.get_eval_dataset_cardinality()/BATCH),
+    # callbacks=callbacks,
 )
 
 print("Now we evaluate on the test data")
-results = model.evaluate(test_ds)
+results = model.evaluate(bsda.get_test_generator())
 print("test loss:", results[0], ", test acc:", results[1])
 
 test_y_hat = []
 test_y     = []
 
 # This is actually very slow
-for e in test_ds:
+for e in bsda.get_test_generator():
     test_y_hat.extend(
         list(np.argmax(model.predict(e[0]), axis=1))
     )
