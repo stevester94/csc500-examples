@@ -29,20 +29,19 @@ BATCH   = 100
 EPOCHS  = 5
 DROPOUT = 0.5 # [0,1], the chance to drop an input
 
-files = [
-    "../../csc500-dataset-preprocessor/bin/day-1_transmitter-10_transmission-1.bin",
-    "../../csc500-dataset-preprocessor/bin/day-1_transmitter-11_transmission-1.bin",
-]
 
 bsda = BinarySymbolDatasetAccessor(
     seed=1337,
     batch_size=BATCH,
     num_class_labels=RANGE,
     bin_path="../../csc500-dataset-preprocessor/bin/",
-    day_to_get=[1],
-    transmitter_id_to_get=[10,11],
+    # day_to_get=[1],
+    # transmitter_id_to_get=[10,11],
     transmission_id_to_get=[1],
 )
+
+print("We are operating on", bsda.get_total_dataset_cardinality(), "elements")
+print("We are operating on", len(bsda.paths), "files")
 
 
 inputs  = keras.Input(shape=(2,48))
@@ -117,6 +116,7 @@ history = model.fit(
     validation_data=bsda.get_eval_generator(),
     validation_steps=int(bsda.get_eval_dataset_cardinality()/BATCH),
     # callbacks=callbacks,
+    #use_multiprocessing=True
 )
 
 print("Now we evaluate on the test data")
