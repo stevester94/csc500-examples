@@ -26,7 +26,7 @@ tf.random.set_seed(1337)
 # Hyper Parameters
 RANGE   = 12
 BATCH   = 100
-EPOCHS  = 5
+EPOCHS  = 1
 DROPOUT = 0.5 # [0,1], the chance to drop an input
 
 
@@ -35,13 +35,24 @@ bsda = BinarySymbolDatasetAccessor(
     batch_size=BATCH,
     num_class_labels=RANGE,
     bin_path="../../csc500-dataset-preprocessor/bin/",
-    # day_to_get=[1],
-    # transmitter_id_to_get=[10,11],
+    day_to_get=[1],
+    transmitter_id_to_get=[10,11],
     transmission_id_to_get=[1],
 )
 
 print("We are operating on", bsda.get_total_dataset_cardinality(), "elements")
 print("We are operating on", len(bsda.paths), "files")
+
+# ds = bsda.dataset_from_generator(bsda.test_generator)
+# ds = ds.map( lambda x: (x["frequency_domain_IQ"], x["transmitter_id"]) )
+# ds = ds.batch(200)
+# ds = ds.map( lambda x,y: (x, tf.one_hot(tf.convert_to_tensor(y, dtype=tf.int64), RANGE)))
+# ds = ds.take(1)
+
+# for e in ds:
+#     print(e)
+
+# sys.exit(0)
 
 
 inputs  = keras.Input(shape=(2,48))
@@ -102,32 +113,46 @@ callbacks = [
     keras.callbacks.ModelCheckpoint(
         filepath="model_checkpoint",
         save_best_only=True,  # Only save a model if `val_loss` has improved.
-        monitor="val_loss", # We could theoretically monitor the eval loss as well (eh)
+        monitor="val_loss", # We could theoretically monitor the val loss as well (eh)
         verbose=0,
     ),
     keras.callbacks.TensorBoard(log_dir="logs/" + datetime.now().strftime("%Y%m%d-%H%M%S"))
 ]
 
 history = model.fit(
-    x=bsda.get_train_generator(),
+    x=bsda.train_generator(),
     # batch_size=BATCH,
     steps_per_epoch=int(bsda.get_train_dataset_cardinality()/BATCH),
     epochs=EPOCHS,
-    validation_data=bsda.get_eval_generator(),
-    validation_steps=int(bsda.get_eval_dataset_cardinality()/BATCH),
+    validation_data=bsda.val_generator(),
+    validation_steps=int(bsda.get_val_dataset_cardinality()/BATCH),
     # callbacks=callbacks,
     #use_multiprocessing=True
 )
 
+
+# ds = bsda.dataset_from_generator(bsda.test_generator)
+# ds = ds.map( lambda x: (x["frequency_domain_IQ"], x["transmitter_id"]) )
+# ds = ds.batch(200)
+# ds = ds.map( lambda x,y: (x, tf.one_hot(tf.convert_to_tensor(y, dtype=tf.int64), RANGE)))
+# ds = ds.take(1)
+
+
 print("Now we evaluate on the test data")
-results = model.evaluate(bsda.get_test_generator())
+results = model.evaluate(
+    bsda.test_generator(),
+    # ds,
+    verbose=1,
+    # workers=0,
+    # steps=int(bsda.get_test_dataset_cardinality()/BATCH)
+)
 print("test loss:", results[0], ", test acc:", results[1])
 
 test_y_hat = []
 test_y     = []
 
 # This is actually very slow
-for e in bsda.get_test_generator():
+for e in bsda.test_generator():
     test_y_hat.extend(
         list(np.argmax(model.predict(e[0]), axis=1))
     )
