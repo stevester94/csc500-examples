@@ -6,11 +6,8 @@
 import sys
 from datetime import datetime
 
-from steves_utils import datasetaccessor
 from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
-from steves_utils.datasetaccessor import SymbolDatasetAccessor
-from steves_utils.binary_random_accessor import Binary_OFDM_Symbol_Random_Accessor
-from steves_utils.binary_symbol_dataset_accessor import BinarySymbolDatasetAccessor, Omnissiah
+from steves_utils import utils
 
 import tensorflow as tf
 import tensorflow.keras.models as models
@@ -18,48 +15,71 @@ import tensorflow.keras as keras
 import matplotlib.pyplot as plt
 import numpy as np
 
+def file_ds_to_record_ds(file_ds, batch_size):
+    ds = file_ds
+    ds = ds.interleave(
+        lambda path: utils.symbol_dataset_from_file(path, batch_size),
+        cycle_length=10, 
+        block_length=1,
+        deterministic=True
+    )
+
+    ds = ds.unbatch().batch(10000)
+
+    return ds
+
 if __name__ == "__main__":
     # Setting the seed is vital for reproducibility
     tf.random.set_seed(1337)
 
     # Hyper Parameters
-    RANGE   = 12
-    BATCH   = 100
-    EPOCHS  = 1
+    RANGE   = 20 + 1 #We have 20 transmitters. one hot is 0 indexed but our transmitters are 1 indexed.
+    RECORD_BATCH   = 100 # NOTE: This is how many records are batched in our binary files, not how many we want in our actual batch
+    EPOCHS  = 2
     DROPOUT = 0.5 # [0,1], the chance to drop an input
 
+    TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
 
-    bsda = BinarySymbolDatasetAccessor(
-        seed=1337,
-        batch_size=BATCH,
-        num_class_labels=RANGE,
-        bin_path="../../csc500-dataset-preprocessor/bin/",
-        # day_to_get=[1],
-        # transmitter_id_to_get=[10,11],
-        transmission_id_to_get=[1],
+    # Our data is thoroughly shuffled already, and is split into many-ish files. So we can take paths in order to build our train-val-test subsets.
+    ds_files = tf.data.Dataset.list_files("../../csc500-dataset-preprocessor/everything_shuffled/*batch-100*ds", shuffle=True)
+
+    ds_files = ds_files.take(20)
+
+    num_train_files = TRAIN_SPLIT * ds_files.cardinality().numpy()
+    num_val_files   = VAL_SPLIT   * ds_files.cardinality().numpy()
+    num_test_files  = TEST_SPLIT  * ds_files.cardinality().numpy()
+
+    train_ds = ds_files.take(num_train_files).shuffle(num_train_files, reshuffle_each_iteration=True)
+    val_ds   = ds_files.skip(num_train_files).take(num_val_files)
+    test_ds  = ds_files.skip(num_train_files).skip(num_val_files).take(num_test_files)
+
+
+    train_ds   = file_ds_to_record_ds(train_ds, RECORD_BATCH)
+    # train_ds = train_ds.unbatch().filter(lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: day == 1).batch(100)
+    train_ds = train_ds.map(
+        lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, tf.one_hot(transmitter_id, RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
     )
 
-    # omnissiah = Omnissiah(
-    #     seed=1337,
-    #     batch_size=BATCH,
-    #     num_class_labels=RANGE,
-    #     bin_path="../../csc500-dataset-preprocessor/bin/",
-    #     # day_to_get=[1],
-    #     # transmitter_id_to_get=[10,11],
-    #     transmission_id_to_get=[1],
-    # )
+    val_ds  = file_ds_to_record_ds(val_ds, RECORD_BATCH)
+    val_ds = val_ds.map(
+        lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, tf.one_hot(transmitter_id, RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
 
-    # train_generator = omnissiah.train_generator()
-    train_generator = bsda.train_generator()
+    test_ds = file_ds_to_record_ds(test_ds, RECORD_BATCH)
+    test_ds = test_ds.map(
+        lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, tf.one_hot(transmitter_id, RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
 
-    print("We are operating on", bsda.get_total_dataset_cardinality(), "elements")
-    print("We are operating on", len(bsda.paths), "files")
-
-    # for e in train_generator:
-    #     print(e)
-
-    # sys.exit(1)
-
+    # train_ds = train_ds.prefetch(100).unbatch().batch(5000)
+    train_ds = train_ds.prefetch(100).take(2)
+    val_ds   = val_ds.prefetch(100).take(2)
+    test_ds  = test_ds.prefetch(100).take(2)
 
     inputs  = keras.Input(shape=(2,48))
 
@@ -126,51 +146,37 @@ if __name__ == "__main__":
     ]
 
     history = model.fit(
-        # x=bsda.train_generator(),
-        # x=omnissiah.train_generator(),
-        x=train_generator,
-        # batch_size=BATCH,
-        steps_per_epoch=int(bsda.get_train_dataset_cardinality()/BATCH),
+        x=train_ds,
         epochs=EPOCHS,
-        # validation_data=bsda.val_generator(),
-        # validation_steps=int(bsda.get_val_dataset_cardinality()/BATCH),
-        # callbacks=callbacks,
-        use_multiprocessing=False,
-        workers=0
+        validation_data=val_ds,
+        callbacks=callbacks,
     )
-
-
-    # ds = bsda.dataset_from_generator(bsda.test_generator)
-    # ds = ds.map( lambda x: (x["frequency_domain_IQ"], x["transmitter_id"]) )
-    # ds = ds.batch(200)
-    # ds = ds.map( lambda x,y: (x, tf.one_hot(tf.convert_to_tensor(y, dtype=tf.int64), RANGE)))
-    # ds = ds.take(1)
 
 
     print("Now we evaluate on the test data")
     results = model.evaluate(
-        bsda.test_generator(),
-        # ds,
+        test_ds,
         verbose=1,
-        # workers=0,
-        # steps=int(bsda.get_test_dataset_cardinality()/BATCH)
     )
     print("test loss:", results[0], ", test acc:", results[1])
 
     test_y_hat = []
     test_y     = []
 
-    # This is actually very slow
-    for e in bsda.test_generator():
-        test_y_hat.extend(
-            list(np.argmax(model.predict(e[0]), axis=1))
+    print("Calculate the confusion matrix")
+    total_confusion = None
+    f = None
+    for e in test_ds:
+        confusion = tf.math.confusion_matrix(
+            np.argmax(model.predict(e[0]), axis=1),
+            np.argmax(e[1].numpy(), axis=1)
         )
 
-        test_y.extend(
-            list(np.argmax(e[1].numpy(), axis=1))
-        )
+        if total_confusion == None:
+            total_confusion = confusion
+        else:
+            total_confusion = total_confusion + confusion
 
-    confusion = tf.math.confusion_matrix(test_y, test_y_hat)
     #plot_confusion_matrix(confusion)
     save_confusion_matrix(confusion)
 
