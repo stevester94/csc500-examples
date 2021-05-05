@@ -15,19 +15,6 @@ import tensorflow.keras as keras
 import matplotlib.pyplot as plt
 import numpy as np
 
-def file_ds_to_record_ds(file_ds, batch_size):
-    ds = file_ds
-    ds = ds.interleave(
-        lambda path: utils.symbol_dataset_from_file(path, batch_size),
-        cycle_length=10, 
-        block_length=1,
-        deterministic=True
-    )
-
-    ds = ds.unbatch().batch(10000)
-
-    return ds
-
 if __name__ == "__main__":
     # Setting the seed is vital for reproducibility
     tf.random.set_seed(1337)
@@ -35,26 +22,30 @@ if __name__ == "__main__":
     # Hyper Parameters
     RANGE   = 20 + 1 #We have 20 transmitters. one hot is 0 indexed but our transmitters are 1 indexed.
     RECORD_BATCH   = 100 # NOTE: This is how many records are batched in our binary files, not how many we want in our actual batch
-    EPOCHS  = 2
+    EPOCHS  = 10
     DROPOUT = 0.5 # [0,1], the chance to drop an input
 
     TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
 
-    # Our data is thoroughly shuffled already, and is split into many-ish files. So we can take paths in order to build our train-val-test subsets.
-    ds_files = tf.data.Dataset.list_files("../../csc500-dataset-preprocessor/everything_shuffled/*batch-100*ds", shuffle=True)
+    
+    accessor = utils.shuffled_dataset_accessor(
+        path="../../csc500-dataset-preprocessor/day-1_ultra-limited",
+        record_batch_size=1000,
+        desired_batch_size=100
+        # train_val_test_split = (1, 0, 0)
+    )
 
-    ds_files = ds_files.take(20)
-
-    num_train_files = TRAIN_SPLIT * ds_files.cardinality().numpy()
-    num_val_files   = VAL_SPLIT   * ds_files.cardinality().numpy()
-    num_test_files  = TEST_SPLIT  * ds_files.cardinality().numpy()
-
-    train_ds = ds_files.take(num_train_files).shuffle(num_train_files, reshuffle_each_iteration=True)
-    val_ds   = ds_files.skip(num_train_files).take(num_val_files)
-    test_ds  = ds_files.skip(num_train_files).skip(num_val_files).take(num_test_files)
+    train_ds = accessor["train_ds"]
+    test_ds = accessor["test_ds"]
+    val_ds = accessor["val_ds"]
+    total_records = accessor["total_records"]
 
 
-    train_ds   = file_ds_to_record_ds(train_ds, RECORD_BATCH)
+    print(total_records)
+
+    # print("WE ARE TRAINING AGAINST DAY")
+    # input("Press enter to continue calmly")
+
     # train_ds = train_ds.unbatch().filter(lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: day == 1).batch(100)
     train_ds = train_ds.map(
         lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, tf.one_hot(transmitter_id, RANGE)),
@@ -62,24 +53,53 @@ if __name__ == "__main__":
         deterministic=True
     )
 
-    val_ds  = file_ds_to_record_ds(val_ds, RECORD_BATCH)
     val_ds = val_ds.map(
         lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, tf.one_hot(transmitter_id, RANGE)),
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
 
-    test_ds = file_ds_to_record_ds(test_ds, RECORD_BATCH)
     test_ds = test_ds.map(
         lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, tf.one_hot(transmitter_id, RANGE)),
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
 
+    # train_ds = train_ds.map(
+    #     lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, transmitter_id),
+    #     num_parallel_calls=tf.data.AUTOTUNE,
+    #     deterministic=True
+    # )
+
+    # val_ds = val_ds.map(
+    #     lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, transmitter_id),
+    #     num_parallel_calls=tf.data.AUTOTUNE,
+    #     deterministic=True
+    # )
+
+    # test_ds = test_ds.map(
+    #     lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: (freq_iq, transmitter_id),
+    #     num_parallel_calls=tf.data.AUTOTUNE,
+    #     deterministic=True
+    # )
+
     # train_ds = train_ds.prefetch(100).unbatch().batch(5000)
-    train_ds = train_ds.prefetch(100).take(2)
-    val_ds   = val_ds.prefetch(100).take(2)
-    test_ds  = test_ds.prefetch(100).take(2)
+    # train_ds = train_ds.prefetch(100).take(2)
+    # val_ds   = val_ds.prefetch(100).take(2)
+    # test_ds  = test_ds.prefetch(100).take(2)
+
+    # train_ds = train_ds.prefetch(100).take(1).cache().repeat(100000).repeat(100000)
+    # train_ds = train_ds.batch(100).map(lambda x,y: (tf.reshape(x, [10000, 2, 48]), tf.reshape(y, [10000, 21]))).prefetch(100)
+    # train_ds = train_ds.caprefetch(100)
+    # val_ds   = val_ds.prefetch(100)
+    # test_ds  = test_ds.prefetch(100)
+
+    train_ds = train_ds.unbatch().batch(10000).cache().shuffle(total_records, reshuffle_each_iteration=True).repeat(100)
+    val_ds   = val_ds.cache()
+    test_ds  = test_ds.cache()
+
+    # for e in train_ds.unbatch():
+    #     print(e)
 
     inputs  = keras.Input(shape=(2,48))
 
@@ -142,7 +162,7 @@ if __name__ == "__main__":
             monitor="val_loss", # We could theoretically monitor the val loss as well (eh)
             verbose=0,
         ),
-        keras.callbacks.TensorBoard(log_dir="logs/" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+        # keras.callbacks.TensorBoard(log_dir="logs/" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     ]
 
     history = model.fit(
@@ -169,7 +189,8 @@ if __name__ == "__main__":
     for e in test_ds:
         confusion = tf.math.confusion_matrix(
             np.argmax(model.predict(e[0]), axis=1),
-            np.argmax(e[1].numpy(), axis=1)
+            np.argmax(e[1].numpy(), axis=1),
+            num_classes=RANGE
         )
 
         if total_confusion == None:
