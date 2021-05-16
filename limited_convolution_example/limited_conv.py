@@ -23,9 +23,9 @@ if __name__ == "__main__":
 
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 100
+    EPOCHS  = 2
     DROPOUT = 0.5 # [0,1], the chance to drop an input
-    BATCH = 10
+    BATCH = 1000
 
     TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
 
@@ -55,19 +55,19 @@ if __name__ == "__main__":
 
     # train_ds = train_ds.unbatch().filter(lambda freq_iq, day, transmitter_id, transmission_id, symbol_index_in_file: day == 1).batch(100)
     train_ds = train_ds.map(
-        lambda IQ,index,serial_number,distance_feet,run: (IQ,tf.one_hot(serial_number, RANGE)),
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
 
     val_ds = val_ds.map(
-        lambda IQ,index,serial_number,distance_feet,run: (IQ,tf.one_hot(serial_number, RANGE)),
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
 
     test_ds = test_ds.map(
-        lambda IQ,index,serial_number,distance_feet,run: (IQ,tf.one_hot(serial_number, RANGE)),
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
