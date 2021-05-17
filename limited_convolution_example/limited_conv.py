@@ -56,9 +56,14 @@ if __name__ == "__main__":
         deterministic=True
     )
 
-    train_ds = train_ds.prefetch(100)
-    val_ds   = val_ds.prefetch(100)
-    test_ds  = test_ds.prefetch(100)
+    train_ds = train_ds.take(10000).prefetch(100)
+    val_ds   = val_ds.take(4000).prefetch(100)
+    test_ds  = test_ds.take(4000).prefetch(100)
+
+    # for e in train_ds.unbatch():
+    #     print( e[1].numpy() )
+
+    # sys.exit(1)
 
     inputs  = keras.Input(shape=(2,ORIGINAL_PAPER_SAMPLES_PER_CHUNK))
 
@@ -147,8 +152,8 @@ if __name__ == "__main__":
     f = None
     for e in test_ds:
         confusion = tf.math.confusion_matrix(
-            np.argmax(model.predict(e[0]), axis=1),
             np.argmax(e[1].numpy(), axis=1),
+            np.argmax(model.predict(e[0]), axis=1),
             num_classes=RANGE
         )
 
