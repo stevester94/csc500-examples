@@ -4,13 +4,10 @@
 
 
 import sys, os
-from datetime import datetime
 
 from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
-from steves_utils import utils
 from steves_utils.ORACLE.simple_oracle_dataset_factory import Simple_ORACLE_Dataset_Factory
 from steves_utils.ORACLE.utils import ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ALL_SERIAL_NUMBERS
-from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
 
 import tensorflow as tf
 import tensorflow.keras.models as models
@@ -18,17 +15,11 @@ import tensorflow.keras as keras
 import matplotlib.pyplot as plt
 import numpy as np
 
-if __name__ == "__main__":
-    # Setting the seed is vital for reproducibility
-    tf.random.set_seed(1337)
+def get_all_shuffled():
+    from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
+    from steves_utils import utils
 
-    # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 20
-    DROPOUT = 0.5 # [0,1], the chance to drop an input
-
-    TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
-
     path = os.path.join(utils.get_datasets_base_path(), "all_shuffled", "output")
     print(utils.get_datasets_base_path())
     print(path)
@@ -56,9 +47,83 @@ if __name__ == "__main__":
         deterministic=True
     )
 
-    train_ds = train_ds.take(10000).prefetch(100)
-    val_ds   = val_ds.take(4000).prefetch(100)
-    test_ds  = test_ds.take(4000).prefetch(100)
+    return train_ds, val_ds, test_ds
+
+# This works
+def get_limited_oracle():
+    TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
+    BATCH=1000
+    RANGE   = len(ALL_SERIAL_NUMBERS)
+
+    
+    ds, cardinality = Simple_ORACLE_Dataset_Factory(
+        ORIGINAL_PAPER_SAMPLES_PER_CHUNK, 
+        runs_to_get=[1],
+        distances_to_get=[8],
+        serial_numbers_to_get=ALL_SERIAL_NUMBERS[:3]
+    )
+
+    print("Total Examples:", cardinality)
+    print("That's {}GB of data (at least)".format( cardinality * ORIGINAL_PAPER_SAMPLES_PER_CHUNK * 2 * 8 / 1024 / 1024 / 1024))
+
+    num_train = int(cardinality * TRAIN_SPLIT)
+    num_val = int(cardinality * VAL_SPLIT)
+    num_test = int(cardinality * TEST_SPLIT)
+
+    ds = ds.shuffle(cardinality)
+
+    train_ds = ds.take(num_train)
+    val_ds = ds.skip(num_train).take(num_val)
+    test_ds = ds.skip(num_train+num_val).take(num_test)
+
+    train_ds = train_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    val_ds = val_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    test_ds = test_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+    
+    train_ds = train_ds.batch(BATCH)
+    val_ds   = val_ds.batch(BATCH)
+    test_ds  = test_ds.batch(BATCH)
+
+    return train_ds, val_ds, test_ds
+
+if __name__ == "__main__":
+    # Setting the seed is vital for reproducibility
+    tf.random.set_seed(1337)
+
+    # Hyper Parameters
+    RANGE   = len(ALL_SERIAL_NUMBERS)
+    EPOCHS  = 200
+    DROPOUT = 0.5 # [0,1], the chance to drop an input
+
+
+    # train_ds, val_ds, test_ds = get_all_shuffled()
+    train_ds, val_ds, test_ds = get_limited_oracle()
+
+    # train_ds = train_ds.unbatch().batch(1).take(1).cache().prefetch(100)
+    # val_ds   = val_ds.unbatch().batch(1).take(1).cache().prefetch(100)
+    # test_ds  = test_ds.unbatch().batch(1).take(1).cache().prefetch(100)
+
+    # train_ds = train_ds.take(10).cache().prefetch(100)
+    # val_ds   = val_ds.take(2).cache().prefetch(100)
+    # test_ds  = test_ds.take(2).cache().prefetch(100)
+
+    train_ds = train_ds.cache().prefetch(100)
+    val_ds   = val_ds.cache().prefetch(100)
+    test_ds  = test_ds.cache().prefetch(100)
 
     # for e in train_ds.unbatch():
     #     print( e[1].numpy() )
