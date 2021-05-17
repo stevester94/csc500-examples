@@ -7,7 +7,7 @@ import sys, os
 
 from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
 from steves_utils.ORACLE.simple_oracle_dataset_factory import Simple_ORACLE_Dataset_Factory
-from steves_utils.ORACLE.utils import ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ALL_SERIAL_NUMBERS
+from steves_utils.ORACLE.utils import ALL_DISTANCES_FEET, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ALL_SERIAL_NUMBERS
 
 import tensorflow as tf
 import tensorflow.keras.models as models
@@ -93,10 +93,72 @@ def get_limited_oracle():
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
+
+    train_ds = train_ds.batch(BATCH)
+    val_ds   = val_ds.batch(BATCH)
+    test_ds  = test_ds.batch(BATCH)
+
+    return train_ds, val_ds, test_ds
+
+def get_less_limited_oracle():
+    TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
+    BATCH=1000
+    RANGE   = len(ALL_SERIAL_NUMBERS)
+
+    
+    ds, cardinality = Simple_ORACLE_Dataset_Factory(
+        ORIGINAL_PAPER_SAMPLES_PER_CHUNK, 
+        runs_to_get=[1],
+        distances_to_get=ALL_DISTANCES_FEET[:1],
+        # serial_numbers_to_get=ALL_SERIAL_NUMBERS[:6]
+    )
+
+    print("Total Examples:", cardinality)
+    print("That's {}GB of data (at least)".format( cardinality * ORIGINAL_PAPER_SAMPLES_PER_CHUNK * 2 * 8 / 1024 / 1024 / 1024))
+    input("Pres Enter to continue")
+    num_train = int(cardinality * TRAIN_SPLIT)
+    num_val = int(cardinality * VAL_SPLIT)
+    num_test = int(cardinality * TEST_SPLIT)
+
+    ds = ds.shuffle(cardinality)
+    ds = ds.cache("/tmp/muh_cache")
+
+    # Prime the cache
+    for e in ds.batch(1000):
+        pass
+
+    # print("Comment this out next time")
+    # sys.exit(1)
+
+    train_ds = ds.take(num_train)
+    val_ds = ds.skip(num_train).take(num_val)
+    test_ds = ds.skip(num_train+num_val).take(num_test)
+
+    train_ds = train_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    val_ds = val_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    test_ds = test_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
     
     train_ds = train_ds.batch(BATCH)
     val_ds   = val_ds.batch(BATCH)
     test_ds  = test_ds.batch(BATCH)
+
+    train_ds = train_ds.prefetch(100)
+    val_ds   = val_ds.prefetch(100)
+    test_ds  = test_ds.prefetch(100)
 
     return train_ds, val_ds, test_ds
 
@@ -111,7 +173,7 @@ if __name__ == "__main__":
 
 
     # train_ds, val_ds, test_ds = get_all_shuffled()
-    train_ds, val_ds, test_ds = get_limited_oracle()
+    train_ds, val_ds, test_ds = get_less_limited_oracle()
 
     # train_ds = train_ds.unbatch().batch(1).take(1).cache().prefetch(100)
     # val_ds   = val_ds.unbatch().batch(1).take(1).cache().prefetch(100)
@@ -121,9 +183,9 @@ if __name__ == "__main__":
     # val_ds   = val_ds.take(2).cache().prefetch(100)
     # test_ds  = test_ds.take(2).cache().prefetch(100)
 
-    train_ds = train_ds.cache().prefetch(100)
-    val_ds   = val_ds.cache().prefetch(100)
-    test_ds  = test_ds.cache().prefetch(100)
+    # train_ds = train_ds.cache().prefetch(100)
+    # val_ds   = val_ds.cache().prefetch(100)
+    # test_ds  = test_ds.cache().prefetch(100)
 
     # for e in train_ds.unbatch():
     #     print( e[1].numpy() )
