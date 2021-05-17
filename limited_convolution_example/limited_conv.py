@@ -8,6 +8,7 @@ import sys, os
 from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
 from steves_utils.ORACLE.simple_oracle_dataset_factory import Simple_ORACLE_Dataset_Factory
 from steves_utils.ORACLE.utils import ALL_DISTANCES_FEET, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ALL_SERIAL_NUMBERS
+import steves_utils.utils
 
 import tensorflow as tf
 import tensorflow.keras.models as models
@@ -101,6 +102,7 @@ def get_limited_oracle():
     return train_ds, val_ds, test_ds
 
 def get_less_limited_oracle():
+    """test loss: 0.05208379030227661 , test acc: 0.16599488258361816"""
     TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
     BATCH=1000
     RANGE   = len(ALL_SERIAL_NUMBERS)
@@ -110,7 +112,7 @@ def get_less_limited_oracle():
         ORIGINAL_PAPER_SAMPLES_PER_CHUNK, 
         runs_to_get=[1],
         distances_to_get=ALL_DISTANCES_FEET[:1],
-        # serial_numbers_to_get=ALL_SERIAL_NUMBERS[:6]
+        serial_numbers_to_get=ALL_SERIAL_NUMBERS[:6]
     )
 
     print("Total Examples:", cardinality)
@@ -121,13 +123,13 @@ def get_less_limited_oracle():
     num_test = int(cardinality * TEST_SPLIT)
 
     ds = ds.shuffle(cardinality)
-    ds = ds.cache("/tmp/muh_cache")
+    ds = ds.cache(os.path.join(steves_utils.utils.get_datasets_base_path(), "caches", "less_limited_oracle"))
 
     # Prime the cache
     for e in ds.batch(1000):
         pass
 
-    # print("Comment this out next time")
+    # print("Buffer primed. Comment this out next time")
     # sys.exit(1)
 
     train_ds = ds.take(num_train)
@@ -168,7 +170,7 @@ if __name__ == "__main__":
 
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 200
+    EPOCHS  = 50
     DROPOUT = 0.5 # [0,1], the chance to drop an input
 
 
