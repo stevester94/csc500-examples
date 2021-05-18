@@ -300,9 +300,9 @@ def get_windowed_less_limited_oracle():
     val_ds   = val_ds.batch(BATCH)
     test_ds  = test_ds.batch(BATCH)
 
-    train_ds = train_ds.prefetch(10).take(1000)
-    val_ds   = val_ds.prefetch(10)
-    test_ds  = test_ds.prefetch(10)
+    train_ds = train_ds.prefetch(100)
+    val_ds   = val_ds.prefetch(100)
+    test_ds  = test_ds.prefetch(100)
 
     return train_ds, val_ds, test_ds
 
@@ -312,7 +312,7 @@ if __name__ == "__main__":
 
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 3
+    EPOCHS  = 10
     DROPOUT = 0.5 # [0,1], the chance to drop an input
 
 
