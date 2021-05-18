@@ -172,7 +172,7 @@ def get_windowed_less_limited_oracle():
     BATCH=500
     RANGE   = len(ALL_SERIAL_NUMBERS)
 
-    chunk_size = 3 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK
+    chunk_size = 2 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK
     STRIDE_SIZE=1
 
     NUM_REPEATS= math.floor((chunk_size - ORIGINAL_PAPER_SAMPLES_PER_CHUNK)/STRIDE_SIZE) + 1
@@ -216,7 +216,7 @@ def get_windowed_less_limited_oracle():
     """
 
 
-    
+
 
     train_ds = ds.take(num_train)
     val_ds = ds.skip(num_train).take(num_val)
@@ -240,8 +240,6 @@ def get_windowed_less_limited_oracle():
         deterministic=True
     )
 
-
-
     train_ds = train_ds.map(
         lambda x, y:
         (
@@ -259,10 +257,10 @@ def get_windowed_less_limited_oracle():
         lambda x, y:
         (
             tf.transpose(
-                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, STRIDE_SIZE), # Somehow we get 9 frames from this
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ORIGINAL_PAPER_SAMPLES_PER_CHUNK), # Somehow we get 9 frames from this
                 [1,0,2]
             ),
-            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=NUM_REPEATS, axis=0) # Repeat our one hot tensor 9 times
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=math.floor(chunk_size/ORIGINAL_PAPER_SAMPLES_PER_CHUNK), axis=0) # Repeat our one hot tensor 9 times
         ),
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
@@ -272,17 +270,22 @@ def get_windowed_less_limited_oracle():
         lambda x, y:
         (
             tf.transpose(
-                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, STRIDE_SIZE), # Somehow we get 9 frames from this
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ORIGINAL_PAPER_SAMPLES_PER_CHUNK), # Somehow we get 9 frames from this
                 [1,0,2]
             ),
-            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=NUM_REPEATS, axis=0) # Repeat our one hot tensor 9 times
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=math.floor(chunk_size/ORIGINAL_PAPER_SAMPLES_PER_CHUNK), axis=0) # Repeat our one hot tensor 9 times
         ),
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
 
-    for e in train_ds.take(1):
-        print(e)
+    # for e in train_ds:
+    #     print(e)
+
+    # for e in test_ds:
+    #     print(e)
+
+    # sys.exit(1)
 
 
     train_ds = train_ds.unbatch()
@@ -297,7 +300,7 @@ def get_windowed_less_limited_oracle():
     val_ds   = val_ds.batch(BATCH)
     test_ds  = test_ds.batch(BATCH)
 
-    train_ds = train_ds.prefetch(10)
+    train_ds = train_ds.prefetch(10).take(1000)
     val_ds   = val_ds.prefetch(10)
     test_ds  = test_ds.prefetch(10)
 
@@ -309,7 +312,7 @@ if __name__ == "__main__":
 
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 20
+    EPOCHS  = 3
     DROPOUT = 0.5 # [0,1], the chance to drop an input
 
 
@@ -402,7 +405,7 @@ if __name__ == "__main__":
         x=train_ds,
         epochs=EPOCHS,
         validation_data=val_ds,
-        callbacks=callbacks,
+        # callbacks=callbacks,
     )
 
 
@@ -414,7 +417,17 @@ if __name__ == "__main__":
     print("test loss:", results[0], ", test acc:", results[1])
 
     with open("RESULTS", "w") as f:
-        f.write("test loss:{}, test acc:{}".format(results[0], results[1]))
+        f.write("test loss:{}, test acc:{}\n".format(results[0], results[1]))
+
+    print("Now we evaluate on the val data")
+    results = model.evaluate(
+        val_ds,
+        verbose=1,
+    )
+    print("val loss:", results[0], ", val acc:", results[1])
+
+    with open("RESULTS", "a") as f:
+        f.write("val loss:{}, val acc:{}\n".format(results[0], results[1]))
 
     test_y_hat = []
     test_y     = []
