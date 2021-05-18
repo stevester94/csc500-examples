@@ -5,6 +5,8 @@
 
 import sys, os
 
+from tensorflow.python.ops.gen_math_ops import floor
+
 from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
 from steves_utils.ORACLE.simple_oracle_dataset_factory import Simple_ORACLE_Dataset_Factory
 from steves_utils.ORACLE.utils import ALL_DISTANCES_FEET, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ALL_SERIAL_NUMBERS
@@ -15,6 +17,7 @@ import tensorflow.keras.models as models
 import tensorflow.keras as keras
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 
 def get_all_shuffled():
     from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
@@ -169,16 +172,20 @@ def get_windowed_less_limited_oracle():
     BATCH=500
     RANGE   = len(ALL_SERIAL_NUMBERS)
 
-    
+    chunk_size = 3 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK
+    STRIDE_SIZE=1
+
+    NUM_REPEATS= math.floor((chunk_size - ORIGINAL_PAPER_SAMPLES_PER_CHUNK)/STRIDE_SIZE) + 1
+
     ds, cardinality = Simple_ORACLE_Dataset_Factory(
-        ORIGINAL_PAPER_SAMPLES_PER_CHUNK  * 2, 
+        chunk_size, 
         runs_to_get=[1],
         distances_to_get=ALL_DISTANCES_FEET[:1],
         serial_numbers_to_get=ALL_SERIAL_NUMBERS[:6]
     )
 
     print("Total Examples:", cardinality)
-    print("That's {}GB of data (at least)".format( cardinality * 2 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK * 2 * 8 / 1024 / 1024 / 1024))
+    print("That's {}GB of data (at least)".format( cardinality * chunk_size * 2 * 8 / 1024 / 1024 / 1024))
     # input("Pres Enter to continue")
     num_train = int(cardinality * TRAIN_SPLIT)
     num_val = int(cardinality * VAL_SPLIT)
@@ -188,8 +195,9 @@ def get_windowed_less_limited_oracle():
     ds = ds.cache(os.path.join(steves_utils.utils.get_datasets_base_path(), "caches", "windowed_less_limited_oracle"))
 
     # Prime the cache
+
     # for e in ds.batch(1000):
-        # pass
+    #     pass
 
     # print("Buffer primed. Comment this out next time")
     # sys.exit(1)
@@ -204,10 +212,11 @@ def get_windowed_less_limited_oracle():
     4, 33, 500 with shuffling bad (but slightly better)
     1, 129, 500 with shuffling GOOD!
     1, 129, 500, 100 epochs BAD
+    3,43
     """
 
-    STRIDE_SIZE=1
-    NUM_REPEATS=129
+
+    
 
     train_ds = ds.take(num_train)
     val_ds = ds.skip(num_train).take(num_val)
@@ -230,6 +239,8 @@ def get_windowed_less_limited_oracle():
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
+
+
 
     train_ds = train_ds.map(
         lambda x, y:
@@ -401,6 +412,9 @@ if __name__ == "__main__":
         verbose=1,
     )
     print("test loss:", results[0], ", test acc:", results[1])
+
+    with open("RESULTS", "w") as f:
+        f.write("test loss:{}, test acc:{}".format(results[0], results[1]))
 
     test_y_hat = []
     test_y     = []
