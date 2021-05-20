@@ -18,19 +18,29 @@ import tensorflow.keras as keras
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import random
 
 # Setting the seed is vital for reproducibility
-tf.random.set_seed(1337)
+def set_seeds(seed):
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    tf.random.set_seed(seed)
+    np.random.seed(seed)
 
 def get_all_shuffled():
+    global RANGE
     from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
     from steves_utils import utils
 
-    RANGE   = len(ALL_SERIAL_NUMBERS)
+    RANGE   = len(ALL_SERIAL_NUMBERS)+1
+    BATCH = 500
+
     path = os.path.join(utils.get_datasets_base_path(), "all_shuffled", "output")
     print(utils.get_datasets_base_path())
     print(path)
-    datasets = Shuffled_Dataset_Factory(path, train_val_test_splits=(0.6, 0.2, 0.2))
+    datasets = Shuffled_Dataset_Factory(
+        path, train_val_test_splits=(0.6, 0.2, 0.2), reshuffle_train_each_iteration=False
+    )
 
     train_ds = datasets["train_ds"]
     val_ds = datasets["val_ds"]
@@ -53,6 +63,10 @@ def get_all_shuffled():
         num_parallel_calls=tf.data.AUTOTUNE,
         deterministic=True
     )
+
+    train_ds = train_ds.unbatch().take(2000000).batch(BATCH).cache()
+    val_ds = val_ds.unbatch().take(10000).batch(BATCH).cache()
+    test_ds = test_ds.unbatch().take(10000).batch(BATCH).cache()
 
     return train_ds, val_ds, test_ds
 
@@ -110,7 +124,7 @@ def get_limited_oracle():
 def get_less_limited_oracle():
     """test loss: 0.05208379030227661 , test acc: 0.16599488258361816"""
     TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
-    BATCH=1000
+    BATCH=500
     RANGE   = len(ALL_SERIAL_NUMBERS)
 
     
@@ -131,9 +145,9 @@ def get_less_limited_oracle():
     ds = ds.shuffle(cardinality)
     ds = ds.cache(os.path.join(steves_utils.utils.get_datasets_base_path(), "caches", "less_limited_oracle"))
 
-    # Prime the cache
-    for e in ds.batch(1000):
-        pass
+    # # Prime the cache
+    # for e in ds.batch(1000):
+    #     pass
 
     # print("Buffer primed. Comment this out next time")
     # sys.exit(1)
@@ -446,15 +460,16 @@ def get_windowed_foxtrot_shuffled():
 
 if __name__ == "__main__":
     # Hyper Parameters
-    RANGE   = len(ALL_SERIAL_NUMBERS) + 1
-    EPOCHS  = 10
+    RANGE   = len(ALL_SERIAL_NUMBERS)
+    EPOCHS  = 75
     DROPOUT = 0.5 # [0,1], the chance to drop an input
+    set_seeds(1337)
 
 
-    # train_ds, val_ds, test_ds = get_all_shuffled()
+    train_ds, val_ds, test_ds = get_all_shuffled()
     # train_ds, val_ds, test_ds = get_less_limited_oracle()
     # train_ds, val_ds, test_ds = get_windowed_less_limited_oracle()
-    train_ds, val_ds, test_ds = get_windowed_foxtrot_shuffled()
+    # train_ds, val_ds, test_ds = get_windowed_foxtrot_shuffled()
 
     # train_ds = train_ds.unbatch().batch(1).take(1).cache().prefetch(100)
     # val_ds   = val_ds.unbatch().batch(1).take(1).cache().prefetch(100)
@@ -522,7 +537,7 @@ if __name__ == "__main__":
     model = keras.Model(inputs=inputs, outputs=outputs, name="steves_model")
     model.summary()
 
-    model.compile(optimizer='adam',
+    model.compile(optimizer=tf.keras.optimizers.Adam(),
                 # loss=tf.keras.losses.MeanSquaredError(), # This may do better with categorical_crossentropy
                 loss=tf.keras.losses.CategoricalCrossentropy(),
                 metrics=[keras.metrics.CategoricalAccuracy()], # Categorical is needed for one hot encoded data
