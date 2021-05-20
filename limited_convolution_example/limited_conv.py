@@ -19,6 +19,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 
+# Setting the seed is vital for reproducibility
+tf.random.set_seed(1337)
+
 def get_all_shuffled():
     from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
     from steves_utils import utils
@@ -172,7 +175,7 @@ def get_windowed_less_limited_oracle():
     BATCH=500
     RANGE   = len(ALL_SERIAL_NUMBERS)
 
-    chunk_size = 2 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK
+    chunk_size = 4 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK
     STRIDE_SIZE=1
 
     NUM_REPEATS= math.floor((chunk_size - ORIGINAL_PAPER_SAMPLES_PER_CHUNK)/STRIDE_SIZE) + 1
@@ -306,19 +309,152 @@ def get_windowed_less_limited_oracle():
 
     return train_ds, val_ds, test_ds
 
-if __name__ == "__main__":
-    # Setting the seed is vital for reproducibility
-    tf.random.set_seed(1337)
+def get_windowed_foxtrot_shuffled():
+    from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
+    from steves_utils import utils
 
+    path = os.path.join(utils.get_datasets_base_path(), "foxtrot", "output")
+    datasets = Shuffled_Dataset_Factory(path, train_val_test_splits=(0.6, 0.2, 0.2))
+
+    train_ds = datasets["train_ds"]
+    val_ds = datasets["val_ds"]
+    test_ds = datasets["test_ds"]    
+
+    # count = 0
+    # for e in train_ds.concatenate(val_ds).concatenate(test_ds):
+    #     count += e["IQ"].shape[0]
+    # print(count)
+    # sys.exit(1)
+
+    train_ds = train_ds.unbatch()
+    val_ds = val_ds.unbatch()
+    test_ds = test_ds.unbatch()
+
+    
+
+    # Chunk size and batch is determined by the shuffled dataset
+    chunk_size = 4 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK
+    STRIDE_SIZE=1
+    BATCH=1000
+    REBATCH=500
+
+    NUM_REPEATS= math.floor((chunk_size - ORIGINAL_PAPER_SAMPLES_PER_CHUNK)/STRIDE_SIZE) + 1
+
+    # print(RANGE)
+    # sys.exit(1)
+
+    # serial_number_id ranges from [0,15]
+
+    # train_ds = train_ds.filter(lambda x: x["serial_number_id"] < 13 or x["serial_number_id"] > 13)
+    # val_ds = val_ds.filter(lambda x: x["serial_number_id"] < 13 or x["serial_number_id"] > 13)
+    # test_ds = test_ds.filter(lambda x: x["serial_number_id"] < 13 or x["serial_number_id"] > 13)
+
+    # train_ds = train_ds.filter(lambda x: x["serial_number_id"] !=  13)
+    # val_ds = val_ds.filter(lambda x: x["serial_number_id"] !=  13)
+    # test_ds = test_ds.filter(lambda x: x["serial_number_id"]  != 13)
+
+    # train_ds = train_ds.filter(lambda x: x["serial_number_id"] < 15)
+    # val_ds = val_ds.filter(lambda x: x["serial_number_id"]     < 15)
+    # test_ds = test_ds.filter(lambda x: x["serial_number_id"]   < 15)
+
+    # val_ds = val_ds.filter(lambda x: x["serial_number_id"] in target_serials)
+    # test_ds = test_ds.filter(lambda x: x["serial_number_id"] in target_serials)
+
+
+    train_ds = train_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    val_ds = val_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    test_ds = test_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+
+    
+
+    train_ds = train_ds.map(
+        lambda x, y:
+        (
+            tf.transpose(
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, STRIDE_SIZE), # Somehow we get 9 frames from this
+                [1,0,2]
+            ),
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=NUM_REPEATS, axis=0) # Repeat our one hot tensor 9 times
+        ),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    val_ds = val_ds.map(
+        lambda x, y:
+        (
+            tf.transpose(
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ORIGINAL_PAPER_SAMPLES_PER_CHUNK), # Somehow we get 9 frames from this
+                [1,0,2]
+            ),
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=math.floor(chunk_size/ORIGINAL_PAPER_SAMPLES_PER_CHUNK), axis=0) # Repeat our one hot tensor 9 times
+        ),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    test_ds = test_ds.map(
+        lambda x, y:
+        (
+            tf.transpose(
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ORIGINAL_PAPER_SAMPLES_PER_CHUNK), # Somehow we get 9 frames from this
+                [1,0,2]
+            ),
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=math.floor(chunk_size/ORIGINAL_PAPER_SAMPLES_PER_CHUNK), axis=0) # Repeat our one hot tensor 9 times
+        ),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    train_ds = train_ds.unbatch()
+    val_ds = val_ds.unbatch()
+    test_ds = test_ds.unbatch()
+
+    train_ds = train_ds.shuffle(BATCH*NUM_REPEATS*4)
+    val_ds   = val_ds.shuffle(BATCH*NUM_REPEATS*4)
+    test_ds  = test_ds.shuffle(BATCH*NUM_REPEATS*4)
+
+    # for e in test_ds:
+    #     print(e[1])
+
+    # sys.exit(1)
+
+    train_ds = train_ds.batch(REBATCH)
+    val_ds   = val_ds.batch(REBATCH)
+    test_ds  = test_ds.batch(REBATCH)
+
+    train_ds = train_ds.prefetch(100)
+    val_ds   = val_ds.prefetch(100)
+    test_ds  = test_ds.prefetch(100)
+
+    return train_ds, val_ds, test_ds
+
+if __name__ == "__main__":
     # Hyper Parameters
-    RANGE   = len(ALL_SERIAL_NUMBERS)
+    RANGE   = len(ALL_SERIAL_NUMBERS) + 1
     EPOCHS  = 10
     DROPOUT = 0.5 # [0,1], the chance to drop an input
 
 
     # train_ds, val_ds, test_ds = get_all_shuffled()
     # train_ds, val_ds, test_ds = get_less_limited_oracle()
-    train_ds, val_ds, test_ds = get_windowed_less_limited_oracle()
+    # train_ds, val_ds, test_ds = get_windowed_less_limited_oracle()
+    train_ds, val_ds, test_ds = get_windowed_foxtrot_shuffled()
 
     # train_ds = train_ds.unbatch().batch(1).take(1).cache().prefetch(100)
     # val_ds   = val_ds.unbatch().batch(1).take(1).cache().prefetch(100)
@@ -387,7 +523,8 @@ if __name__ == "__main__":
     model.summary()
 
     model.compile(optimizer='adam',
-                loss=tf.keras.losses.MeanSquaredError(), # This may do better with categorical_crossentropy
+                # loss=tf.keras.losses.MeanSquaredError(), # This may do better with categorical_crossentropy
+                loss=tf.keras.losses.CategoricalCrossentropy(),
                 metrics=[keras.metrics.CategoricalAccuracy()], # Categorical is needed for one hot encoded data
     )
 
