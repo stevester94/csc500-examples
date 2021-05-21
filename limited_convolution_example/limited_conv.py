@@ -31,6 +31,143 @@ def set_seeds(seed):
     tf.random.set_seed(seed)
     np.random.seed(seed)
 
+def get_all_shuffled_windowed():
+    global RANGE
+    from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
+    from steves_utils import utils
+
+    DATASET_BATCH_SIZE = 100
+    BATCH = 256
+    chunk_size = 4 * ORIGINAL_PAPER_SAMPLES_PER_CHUNK
+    STRIDE_SIZE=1
+
+    NUM_REPEATS= math.floor((chunk_size - ORIGINAL_PAPER_SAMPLES_PER_CHUNK)/STRIDE_SIZE) + 1
+
+    # path = os.path.join(utils.get_datasets_base_path(), "all_shuffled", "output")
+    # print(utils.get_datasets_base_path())
+    # print(path)
+    # datasets = Shuffled_Dataset_Factory(
+    #     path, train_val_test_splits=(0.6, 0.2, 0.2), reshuffle_train_each_iteration=False
+    # )
+
+    # train_ds = datasets["train_ds"]
+    # val_ds = datasets["val_ds"]
+    # test_ds = datasets["test_ds"]
+
+    # train_ds = train_ds.unbatch().take(200000 * len(ALL_SERIAL_NUMBERS))
+    # val_ds = val_ds.unbatch().take(10000 * len(ALL_SERIAL_NUMBERS))
+    # test_ds = test_ds.unbatch().take(50000 * len(ALL_SERIAL_NUMBERS))
+
+    # BEGIN DS KLUDGE
+    ds, cardinality = Simple_ORACLE_Dataset_Factory(
+        chunk_size, 
+        runs_to_get=[1],
+        distances_to_get=ALL_DISTANCES_FEET[:1],
+        serial_numbers_to_get=ALL_SERIAL_NUMBERS[:6]
+    )
+
+    print("Total Examples:", cardinality)
+    print("That's {}GB of data (at least)".format( cardinality * chunk_size * 2 * 8 / 1024 / 1024 / 1024))
+    TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
+    num_train = int(cardinality * TRAIN_SPLIT)
+    num_val = int(cardinality * VAL_SPLIT)
+    num_test = int(cardinality * TEST_SPLIT)
+
+    ds = ds.shuffle(100)
+
+    train_ds = ds.take(100)
+    val_ds = ds.skip(100).take(100)
+    test_ds = ds.skip(100+100).take(100)
+
+    # END DS KLUDGE
+
+
+
+
+
+
+
+    train_ds = train_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    val_ds = val_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    test_ds = test_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    train_ds = train_ds.map(
+        lambda x, y:
+        (
+            tf.transpose(
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, STRIDE_SIZE),
+                [1,0,2]
+            ),
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=NUM_REPEATS, axis=0)
+        ),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    # We aren't really windowing the val and test data, we are just splitting them into 128 sample chunks so that they are
+    # the same shape as the train data
+    val_ds = val_ds.map(
+        lambda x, y:
+        (
+            tf.transpose(
+                # See, stride == length, meaning we are just splitting the chunks, not really windowing
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ORIGINAL_PAPER_SAMPLES_PER_CHUNK),
+                [1,0,2]
+            ),
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=math.floor(chunk_size/ORIGINAL_PAPER_SAMPLES_PER_CHUNK), axis=0)
+        ),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    test_ds = test_ds.map(
+        lambda x, y:
+        (
+            tf.transpose(
+                # See, stride == length, meaning we are just splitting the chunks, not really windowing
+                tf.signal.frame(x, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ORIGINAL_PAPER_SAMPLES_PER_CHUNK),
+                [1,0,2]
+            ),
+            tf.repeat(tf.reshape(y, (1,RANGE)), repeats=math.floor(chunk_size/ORIGINAL_PAPER_SAMPLES_PER_CHUNK), axis=0)
+        ),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+
+    train_ds = train_ds.unbatch()
+    val_ds = val_ds.unbatch()
+    test_ds = test_ds.unbatch()
+
+    train_ds = train_ds.shuffle(DATASET_BATCH_SIZE*NUM_REPEATS*3)
+
+    train_ds = train_ds.batch(BATCH)
+    val_ds   = val_ds.batch(BATCH)
+    test_ds  = test_ds.batch(BATCH)
+
+    train_ds = train_ds.prefetch(100)
+    val_ds   = val_ds.prefetch(100)
+    test_ds  = test_ds.prefetch(100)
+
+
+
+    return train_ds, val_ds, test_ds
+
+
 def get_all_shuffled():
     global RANGE
     from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
@@ -221,22 +358,6 @@ def get_windowed_less_limited_oracle():
 
     # print("Buffer primed. Comment this out next time")
     # sys.exit(1)
-
-    """
-    stride, repeat, batch
-    16,9,1000 good
-    16,9,500 good
-    32,5,1000 bad
-    32,5,500 good
-    4, 33, 500 bad
-    4, 33, 500 with shuffling bad (but slightly better)
-    1, 129, 500 with shuffling GOOD!
-    1, 129, 500, 100 epochs BAD
-    3,43
-    """
-
-
-
 
     train_ds = ds.take(num_train)
     val_ds = ds.skip(num_train).take(num_val)
@@ -471,7 +592,8 @@ if __name__ == "__main__":
     set_seeds(1337)
 
 
-    train_ds, val_ds, test_ds = get_all_shuffled()
+    # train_ds, val_ds, test_ds = get_all_shuffled()
+    train_ds, val_ds, test_ds = get_all_shuffled_windowed()
     # train_ds, val_ds, test_ds = get_less_limited_oracle()
     # train_ds, val_ds, test_ds = get_windowed_less_limited_oracle()
     # train_ds, val_ds, test_ds = get_windowed_foxtrot_shuffled()
