@@ -20,6 +20,8 @@ import numpy as np
 import math
 import random
 
+EXPERIMENT_NAME = "ligma"
+
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -33,7 +35,7 @@ def get_all_shuffled():
     from steves_utils import utils
 
     RANGE   = len(ALL_SERIAL_NUMBERS)+1
-    BATCH = 500
+    BATCH = 32
 
     path = os.path.join(utils.get_datasets_base_path(), "all_shuffled", "output")
     print(utils.get_datasets_base_path())
@@ -461,7 +463,7 @@ def get_windowed_foxtrot_shuffled():
 if __name__ == "__main__":
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 75
+    EPOCHS  = 150
     DROPOUT = 0.5 # [0,1], the chance to drop an input
     set_seeds(1337)
 
