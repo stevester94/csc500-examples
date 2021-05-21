@@ -20,7 +20,9 @@ import numpy as np
 import math
 import random
 
-EXPERIMENT_NAME = "ligma"
+import time
+
+EXPERIMENT_NAME = "is_onehot_broken"
 
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
@@ -34,8 +36,8 @@ def get_all_shuffled():
     from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
     from steves_utils import utils
 
-    RANGE   = len(ALL_SERIAL_NUMBERS)+1
-    BATCH = 32
+    # RANGE   = len(ALL_SERIAL_NUMBERS)+1
+    BATCH = 256
 
     path = os.path.join(utils.get_datasets_base_path(), "all_shuffled", "output")
     print(utils.get_datasets_base_path())
@@ -66,9 +68,9 @@ def get_all_shuffled():
         deterministic=True
     )
 
-    train_ds = train_ds.unbatch().take(2000000).batch(BATCH).cache()
-    val_ds = val_ds.unbatch().take(10000).batch(BATCH).cache()
-    test_ds = test_ds.unbatch().take(10000).batch(BATCH).cache()
+    train_ds = train_ds.unbatch().take(2000 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
+    val_ds = val_ds.unbatch().take(100 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
+    test_ds = test_ds.unbatch().take(200 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
 
     return train_ds, val_ds, test_ds
 
@@ -461,6 +463,8 @@ def get_windowed_foxtrot_shuffled():
     return train_ds, val_ds, test_ds
 
 if __name__ == "__main__":
+    start_time = time.time()
+
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
     EPOCHS  = 2
@@ -609,3 +613,8 @@ if __name__ == "__main__":
     # Loss curve
     #plot_loss_curve(history)
     save_loss_curve(history)
+
+    end_time = time.time()
+
+    with open("RESULTS", "a") as f:
+        f.write("total time seconds: {}\n".format(end_time-start_time))
