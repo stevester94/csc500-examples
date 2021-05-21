@@ -22,7 +22,7 @@ import random
 
 import time
 
-EXPERIMENT_NAME = "is_onehot_broken"
+EXPERIMENT_NAME = "256_batch_200kX16_samples_no_windowing_50epochs"
 
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
@@ -36,7 +36,6 @@ def get_all_shuffled():
     from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
     from steves_utils import utils
 
-    # RANGE   = len(ALL_SERIAL_NUMBERS)+1
     BATCH = 256
 
     path = os.path.join(utils.get_datasets_base_path(), "all_shuffled", "output")
@@ -68,9 +67,9 @@ def get_all_shuffled():
         deterministic=True
     )
 
-    train_ds = train_ds.unbatch().take(2000 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
-    val_ds = val_ds.unbatch().take(100 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
-    test_ds = test_ds.unbatch().take(200 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
+    train_ds = train_ds.unbatch().take(200000 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
+    val_ds = val_ds.unbatch().take(10000 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
+    test_ds = test_ds.unbatch().take(50000 * len(ALL_SERIAL_NUMBERS)).batch(BATCH)
 
     return train_ds, val_ds, test_ds
 
@@ -467,7 +466,7 @@ if __name__ == "__main__":
 
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 2
+    EPOCHS  = 50
     DROPOUT = 0.5 # [0,1], the chance to drop an input
     set_seeds(1337)
 
