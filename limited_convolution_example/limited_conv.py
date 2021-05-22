@@ -43,41 +43,41 @@ def get_all_shuffled_windowed():
 
     NUM_REPEATS= math.floor((chunk_size - ORIGINAL_PAPER_SAMPLES_PER_CHUNK)/STRIDE_SIZE) + 1
 
-    # path = os.path.join(utils.get_datasets_base_path(), "all_shuffled", "output")
-    # print(utils.get_datasets_base_path())
-    # print(path)
-    # datasets = Shuffled_Dataset_Factory(
-    #     path, train_val_test_splits=(0.6, 0.2, 0.2), reshuffle_train_each_iteration=False
-    # )
-
-    # train_ds = datasets["train_ds"]
-    # val_ds = datasets["val_ds"]
-    # test_ds = datasets["test_ds"]
-
-    # train_ds = train_ds.unbatch().take(200000 * len(ALL_SERIAL_NUMBERS))
-    # val_ds = val_ds.unbatch().take(10000 * len(ALL_SERIAL_NUMBERS))
-    # test_ds = test_ds.unbatch().take(50000 * len(ALL_SERIAL_NUMBERS))
-
-    # BEGIN DS KLUDGE
-    ds, cardinality = Simple_ORACLE_Dataset_Factory(
-        chunk_size, 
-        runs_to_get=[1],
-        distances_to_get=ALL_DISTANCES_FEET[:1],
-        serial_numbers_to_get=ALL_SERIAL_NUMBERS[:6]
+    path = os.path.join(utils.get_datasets_base_path(), "all_shuffled_chunk-512", "output")
+    print(utils.get_datasets_base_path())
+    print(path)
+    datasets = Shuffled_Dataset_Factory(
+        path, train_val_test_splits=(0.6, 0.2, 0.2), reshuffle_train_each_iteration=False
     )
 
-    print("Total Examples:", cardinality)
-    print("That's {}GB of data (at least)".format( cardinality * chunk_size * 2 * 8 / 1024 / 1024 / 1024))
-    TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
-    num_train = int(cardinality * TRAIN_SPLIT)
-    num_val = int(cardinality * VAL_SPLIT)
-    num_test = int(cardinality * TEST_SPLIT)
+    train_ds = datasets["train_ds"]
+    val_ds = datasets["val_ds"]
+    test_ds = datasets["test_ds"]
 
-    ds = ds.shuffle(100)
+    train_ds = train_ds.unbatch().take(200000 * len(ALL_SERIAL_NUMBERS))
+    val_ds = val_ds.unbatch().take(10000 * len(ALL_SERIAL_NUMBERS))
+    test_ds = test_ds.unbatch().take(50000 * len(ALL_SERIAL_NUMBERS))
 
-    train_ds = ds.take(100)
-    val_ds = ds.skip(100).take(100)
-    test_ds = ds.skip(100+100).take(100)
+    # BEGIN DS KLUDGE
+    # ds, cardinality = Simple_ORACLE_Dataset_Factory(
+    #     chunk_size, 
+    #     runs_to_get=[1],
+    #     distances_to_get=ALL_DISTANCES_FEET[:1],
+    #     serial_numbers_to_get=ALL_SERIAL_NUMBERS[:6]
+    # )
+
+    # print("Total Examples:", cardinality)
+    # print("That's {}GB of data (at least)".format( cardinality * chunk_size * 2 * 8 / 1024 / 1024 / 1024))
+    # TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT = (0.6, 0.2, 0.2)
+    # num_train = int(cardinality * TRAIN_SPLIT)
+    # num_val = int(cardinality * VAL_SPLIT)
+    # num_test = int(cardinality * TEST_SPLIT)
+
+    # ds = ds.shuffle(100)
+
+    # train_ds = ds.take(100)
+    # val_ds = ds.skip(100).take(100)
+    # test_ds = ds.skip(100+100).take(100)
 
     # END DS KLUDGE
 
