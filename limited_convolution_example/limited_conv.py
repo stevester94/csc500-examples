@@ -22,7 +22,7 @@ import random
 
 import time
 
-EXPERIMENT_NAME = "256_batch_200kX16_samples_no_windowing_50epochs"
+EXPERIMENT_NAME = "512_batch_200kXdev_samples_windowing_50epochs_learnrate_0.001"
 
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
@@ -40,6 +40,9 @@ def get_shuffled_and_windowed_from_pregen_ds():
     print(utils.get_datasets_base_path())
     print(path)
     datasets = Windowed_Shuffled_Dataset_Factory(path)
+
+    ORIGINAL_BATCH_SIZE=100
+    DESIRED_BATCH_SIZE=512
 
     train_ds = datasets["train_ds"]
     val_ds = datasets["val_ds"]
@@ -63,11 +66,19 @@ def get_shuffled_and_windowed_from_pregen_ds():
         deterministic=True
     )
 
+    train_ds = train_ds.unbatch()
+    val_ds  = val_ds.unbatch()
+    test_ds = test_ds.unbatch()
+
+    train_ds = train_ds.shuffle(100 * ORIGINAL_BATCH_SIZE, reshuffle_each_iteration=True)
+    
+    train_ds = train_ds.batch(DESIRED_BATCH_SIZE)
+    val_ds  = val_ds.batch(DESIRED_BATCH_SIZE)
+    test_ds = test_ds.batch(DESIRED_BATCH_SIZE)
+
     train_ds = train_ds.prefetch(100)
     val_ds   = val_ds.prefetch(100)
     test_ds  = test_ds.prefetch(100)
-
-
 
     return train_ds, val_ds, test_ds
 
@@ -677,7 +688,7 @@ if __name__ == "__main__":
     model = keras.Model(inputs=inputs, outputs=outputs, name="steves_model")
     model.summary()
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(),
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
                 # loss=tf.keras.losses.MeanSquaredError(), # This may do better with categorical_crossentropy
                 loss=tf.keras.losses.CategoricalCrossentropy(),
                 metrics=[keras.metrics.CategoricalAccuracy()], # Categorical is needed for one hot encoded data
