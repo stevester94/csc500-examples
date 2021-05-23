@@ -31,6 +31,47 @@ def set_seeds(seed):
     tf.random.set_seed(seed)
     np.random.seed(seed)
 
+def get_shuffled_and_windowed_from_pregen_ds():
+    from steves_utils.ORACLE.windowed_shuffled_dataset_accessor import Windowed_Shuffled_Dataset_Factory
+    from steves_utils import utils
+
+    # Batch size is baked into the dataset
+    path = os.path.join(utils.get_datasets_base_path(), "windowed_200k-each-devices_batch-100")
+    print(utils.get_datasets_base_path())
+    print(path)
+    datasets = Windowed_Shuffled_Dataset_Factory(path)
+
+    train_ds = datasets["train_ds"]
+    val_ds = datasets["val_ds"]
+    test_ds = datasets["test_ds"]   
+
+    train_ds = train_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    val_ds = val_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    test_ds = test_ds.map(
+        lambda x: (x["IQ"],tf.one_hot(x["serial_number_id"], RANGE)),
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=True
+    )
+
+    train_ds = train_ds.prefetch(100)
+    val_ds   = val_ds.prefetch(100)
+    test_ds  = test_ds.prefetch(100)
+
+
+
+    return train_ds, val_ds, test_ds
+
+
 def get_all_shuffled_windowed():
     global RANGE
     from steves_utils.ORACLE.shuffled_dataset_accessor import Shuffled_Dataset_Factory
@@ -564,7 +605,8 @@ if __name__ == "__main__":
 
 
     # train_ds, val_ds, test_ds = get_all_shuffled()
-    train_ds, val_ds, test_ds = get_all_shuffled_windowed()
+    # train_ds, val_ds, test_ds = get_all_shuffled_windowed()
+    train_ds, val_ds, test_ds = get_shuffled_and_windowed_from_pregen_ds()
     # train_ds, val_ds, test_ds = get_less_limited_oracle()
     # train_ds, val_ds, test_ds = get_windowed_less_limited_oracle()
     # train_ds, val_ds, test_ds = get_windowed_foxtrot_shuffled()
