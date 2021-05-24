@@ -22,7 +22,11 @@ import random
 
 import time
 
-EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-100_stride-1_distances-2"
+EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-512_learningRate-0.0001_stride-20_distances-2_epochs-200"
+LEARNING_RATE = 0.0001
+ORIGINAL_BATCH_SIZE=100
+DESIRED_BATCH_SIZE=512
+EPOCHS  = 200
 
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
@@ -35,12 +39,9 @@ def get_shuffled_and_windowed_from_pregen_ds():
     from steves_utils.ORACLE.windowed_shuffled_dataset_accessor import Windowed_Shuffled_Dataset_Factory
     from steves_utils import utils
 
-    path = os.path.join(utils.get_datasets_base_path(), "automated_windower", "windowed_EachDevice-200k_batch-100_stride-1_distances-2")
+    path = os.path.join(utils.get_datasets_base_path(), "automated_windower", "windowed_EachDevice-200k_batch-100_stride-20_distances-2")
     print(path)
     datasets = Windowed_Shuffled_Dataset_Factory(path)
-
-    ORIGINAL_BATCH_SIZE=100
-    DESIRED_BATCH_SIZE=512
 
     train_ds = datasets["train_ds"]
     val_ds = datasets["val_ds"]
@@ -86,7 +87,6 @@ if __name__ == "__main__":
 
     # Hyper Parameters
     RANGE   = len(ALL_SERIAL_NUMBERS)
-    EPOCHS  = 25
     DROPOUT = 0.5 # [0,1], the chance to drop an input
     set_seeds(1337)
 
@@ -141,27 +141,31 @@ if __name__ == "__main__":
     model = keras.Model(inputs=inputs, outputs=outputs, name="steves_model")
     model.summary()
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
                 # loss=tf.keras.losses.MeanSquaredError(), # This may do better with categorical_crossentropy
                 loss=tf.keras.losses.CategoricalCrossentropy(),
                 metrics=[keras.metrics.CategoricalAccuracy()], # Categorical is needed for one hot encoded data
     )
 
+    # callbacks = [
+    #     keras.callbacks.ModelCheckpoint(
+    #         filepath="model_checkpoint",
+    #         save_best_only=True,  # Only save a model if `val_loss` has improved.
+    #         monitor="val_loss", # We could theoretically monitor the val loss as well (eh)
+    #         verbose=0,
+    #     ),
+    #     # keras.callbacks.TensorBoard(log_dir="logs/" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    # ]
+
     callbacks = [
-        keras.callbacks.ModelCheckpoint(
-            filepath="model_checkpoint",
-            save_best_only=True,  # Only save a model if `val_loss` has improved.
-            monitor="val_loss", # We could theoretically monitor the val loss as well (eh)
-            verbose=0,
-        ),
-        # keras.callbacks.TensorBoard(log_dir="logs/" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
     ]
 
     history = model.fit(
         x=train_ds,
         epochs=EPOCHS,
         validation_data=val_ds,
-        # callbacks=callbacks,
+        callbacks=callbacks,
     )
 
 
