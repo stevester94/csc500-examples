@@ -22,11 +22,12 @@ import random
 
 import time
 
-EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-512_learningRate-0.0001_stride-20_distances-2_epochs-200"
+EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-256_learningRate-0.0001_stride-20_distances-2_epochs-200_patience-50"
 LEARNING_RATE = 0.0001
 ORIGINAL_BATCH_SIZE=100
-DESIRED_BATCH_SIZE=512
-EPOCHS  = 200
+DESIRED_BATCH_SIZE=256
+EPOCHS  = 1000
+PATIENCE = 50
 
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
@@ -158,7 +159,7 @@ if __name__ == "__main__":
     # ]
 
     callbacks = [
-        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=PATIENCE)
     ]
 
     history = model.fit(
