@@ -22,12 +22,12 @@ import random
 
 import time
 
-EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-256_learningRate-0.0001_stride-20_distances-2_epochs-200_patience-50"
-LEARNING_RATE = 0.0001
+EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-512_learningRate-0.001_stride-20_distances-8_epochs-25"
+LEARNING_RATE = 0.001
 ORIGINAL_BATCH_SIZE=100
-DESIRED_BATCH_SIZE=256
-EPOCHS  = 1000
-PATIENCE = 50
+DESIRED_BATCH_SIZE=512
+EPOCHS  = 25
+# PATIENCE = 50
 
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
@@ -40,7 +40,7 @@ def get_shuffled_and_windowed_from_pregen_ds():
     from steves_utils.ORACLE.windowed_shuffled_dataset_accessor import Windowed_Shuffled_Dataset_Factory
     from steves_utils import utils
 
-    path = os.path.join(utils.get_datasets_base_path(), "automated_windower", "windowed_EachDevice-200k_batch-100_stride-20_distances-2")
+    path = os.path.join(utils.get_datasets_base_path(), "automated_windower", "windowed_EachDevice-200k_batch-100_stride-20_distances-8")
     print(path)
     datasets = Windowed_Shuffled_Dataset_Factory(path)
 
@@ -158,15 +158,15 @@ if __name__ == "__main__":
     #     # keras.callbacks.TensorBoard(log_dir="logs/" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     # ]
 
-    callbacks = [
-        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=PATIENCE)
-    ]
+    # callbacks = [
+    #     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=PATIENCE)
+    # ]
 
     history = model.fit(
         x=train_ds,
         epochs=EPOCHS,
         validation_data=val_ds,
-        callbacks=callbacks,
+        # callbacks=callbacks,
     )
 
 
