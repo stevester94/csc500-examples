@@ -1,8 +1,8 @@
-#! /usr/bin/bash
+#! /usr/bin/env bash
 set -eou pipefail
 
-source_dataset_base_path="/mnt/wd500GB/CSC500/csc500-super-repo/datasets/automated_windower"
-results_base_path="/mnt/wd500GB/CSC500/csc500-super-repo/csc500-past-runs/oracle_avtomat"
+source_dataset_base_path="/csc500-super-repo/datasets/automated_windower"
+results_base_path="/csc500-super-repo/csc500-past-runs"
 
 original_batch_size=100
 patience=10
