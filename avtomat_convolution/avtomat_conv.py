@@ -1,16 +1,14 @@
 #! /usr/bin/python3
 
-# This is just a toy to test out basic keras usage. We are training an identity function
-
-
 import sys, os
 
 from tensorflow.python.ops.gen_math_ops import floor
 
-from steves_utils.graphing import plot_confusion_matrix, plot_loss_curve, save_confusion_matrix, save_loss_curve
+from steves_utils.graphing import save_confusion_matrix, save_loss_curve
 from steves_utils.ORACLE.simple_oracle_dataset_factory import Simple_ORACLE_Dataset_Factory
 from steves_utils.ORACLE.utils import ALL_DISTANCES_FEET, ORIGINAL_PAPER_SAMPLES_PER_CHUNK, ALL_SERIAL_NUMBERS
-import steves_utils.utils
+from steves_utils import utils
+
 
 import tensorflow as tf
 import tensorflow.keras.models as models
@@ -19,15 +17,29 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 import random
-
+import json
+import sys
 import time
 
-EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-512_learningRate-0.0001_stride-20_distances-26_epochs-50_patience-50"
-LEARNING_RATE = 0.0001
-ORIGINAL_BATCH_SIZE=100
-DESIRED_BATCH_SIZE=256
-EPOCHS  = 50
-PATIENCE = 50
+if __name__ == "__main__":
+    j = json.loads(sys.stdin.read())
+
+    # EXPERIMENT_NAME = "windowed_EachDevice-200k_batch-512_learningRate-0.0001_stride-20_distances-26_epochs-50_patience-50"
+    # SOURCE_DATASET_PATH = os.path.join(utils.get_datasets_base_path(), "automated_windower", "windowed_EachDevice-200k_batch-100_stride-20_distances-26")
+    # LEARNING_RATE = 0.0001
+    # ORIGINAL_BATCH_SIZE=100
+    # DESIRED_BATCH_SIZE=256
+    # EPOCHS  = 50
+    # PATIENCE = 50
+
+    EXPERIMENT_NAME = j["experiment_name"]
+    SOURCE_DATASET_PATH = j["source_dataset_path"]
+    LEARNING_RATE = j["learning_rate"]
+    ORIGINAL_BATCH_SIZE = j["original_batch_size"]
+    DESIRED_BATCH_SIZE = j["desired_batch_size"]
+    EPOCHS = j["epochs"]
+    PATIENCE = j["patience"]
+
 
 # Setting the seed is vital for reproducibility
 def set_seeds(seed):
@@ -38,9 +50,8 @@ def set_seeds(seed):
 
 def get_shuffled_and_windowed_from_pregen_ds():
     from steves_utils.ORACLE.windowed_shuffled_dataset_accessor import Windowed_Shuffled_Dataset_Factory
-    from steves_utils import utils
 
-    path = os.path.join(utils.get_datasets_base_path(), "automated_windower", "windowed_EachDevice-200k_batch-100_stride-20_distances-26")
+    path = SOURCE_DATASET_PATH
     print(path)
     datasets = Windowed_Shuffled_Dataset_Factory(path)
 
