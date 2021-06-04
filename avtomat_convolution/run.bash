@@ -7,10 +7,11 @@ results_base_path="/csc500-super-repo/csc500-past-runs/oracle_avtomat/"
 original_batch_size=100
 patience=10
 
-for epochs in 10 300; do
-for learning_rate in 0.0001 0.001; do
-for distance in 8 14 20 26 44 62 2 32 38 50 56; do # distance 4 is busted
+#Prioritize batch 128 and distances 50,56 based on epoch-10 testing
 for desired_batch_size in 128 256 512; do
+for epochs in 300; do
+for learning_rate in 0.0001; do
+for distance in 50 56 8 14 20 26 44 62 2 32 38; do # distance 4 is busted
     experiment_name=avtomat_distance-${distance}_learningRate-${learning_rate}_batch-${desired_batch_size}_epochs-${epochs}_patience-$patience
     echo "Begin $experiment_name" | tee logs
     cat << EOF | ./avtomat_conv.py 2>&1 | tee --append logs
