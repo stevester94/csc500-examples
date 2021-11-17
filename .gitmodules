@@ -1,0 +1,3 @@
+[submodule "gnuradio_exploration"]
+	path = gnuradio_exploration
+	url = https://github.com/stevester94/gnuradio_exploration.git
